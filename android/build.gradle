@@ -28,6 +28,21 @@ android {
     namespace 'com.mrtungdev.flutter_zebra_sdk'
     compileSdkVersion 34
 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_19
+        targetCompatibility JavaVersion.VERSION_19
+
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(19)
+            }
+        }
+    }
+
+    kotlinOptions {
+        jvmTarget = '19'
+    }
+
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
     }

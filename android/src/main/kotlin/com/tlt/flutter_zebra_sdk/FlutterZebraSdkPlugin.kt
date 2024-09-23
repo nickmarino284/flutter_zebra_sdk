@@ -20,12 +20,6 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 
-
-// import kotlinx.serialization.*
-// import kotlinx.serialization.json.*
-//import kotlinx.serialization.internal.*
-
-
 interface JSONConvertable {
   fun toJSON(): String = Gson().toJson(this)
 }
@@ -52,8 +46,6 @@ class ZebraPrinterInfo(
         val primaryLanguage: String? = null
 ): JSONConvertable
 
-
-/** FlutterZebraSdkPlugin */
 class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
   // / The MethodChannel that will the communication between Flutter and native Android
   // /
@@ -62,24 +54,8 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
   private lateinit var channel: MethodChannel
   private var logTag: String = "ZebraSDK"
   private lateinit var context: Context
-  private lateinit var activity: Activity
+  private var activity: Activity? = null
   var printers: MutableList<ZebraPrinterInfo> = ArrayList()
-
-  override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-    activity = binding.activity;
-  }
-
-  override fun onDetachedFromActivityForConfigChanges() {
-    TODO("Not yet implemented")
-  }
-
-  override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-    TODO("Not yet implemented")
-  }
-
-  override fun onDetachedFromActivity() {
-    TODO("Not yet implemented")
-  }
 
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
     channel = MethodChannel(flutterPluginBinding.binaryMessenger, "flutter_zebra_sdk")
@@ -94,6 +70,22 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
   override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
+  }
+
+  override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+    activity = binding.activity
+  }
+
+  override fun onDetachedFromActivity() {
+    activity = null
+  }
+
+  override fun onDetachedFromActivityForConfigChanges() {
+    onDetachedFromActivity()
+  }
+
+  override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+    onAttachedToActivity(binding)
   }
 
   inner class MethodRunner(call: MethodCall, result: Result) : Runnable {
@@ -127,7 +119,6 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
   }
 
   class MethodResultWrapper(methodResult: Result) : Result {
-
     private val methodResult: Result = methodResult
     private val handler: Handler = Handler(Looper.getMainLooper())
 
@@ -149,118 +140,79 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
   }
 
   private fun onPrintZPLOverTCPIP(@NonNull call: MethodCall, @NonNull result: Result) {
-    var ipE: String? = call.argument("ip")
-    var data: String? = call.argument("data")
-    var rep = HashMap<String, Any>()
-    var ipAddress: String = ""
-    if(ipE != null){
-      ipAddress = ipE
-    } else {
-      result.error("PrintZPLOverTCPIP", "IP Address is required", "Data Content")
+    val ip = call.argument<String>("ip")
+    val data = call.argument<String>("data")
+    if (ip.isNullOrEmpty()) {
+      result.error("PrintZPLOverTCPIP", "IP Address is required", null)
       return
     }
-    val conn: Connection = createTcpConnect(ipAddress, TcpConnection.DEFAULT_ZPL_TCP_PORT)
-    Log.d(logTag, "onPrintZPLOverTCPIP $ipAddress $data ${TcpConnection.DEFAULT_ZPL_TCP_PORT}")
-    if (data == null) {
-      result.error("PrintZPLOverTCPIP", "Data is required", "Data Content")
+    if (data.isNullOrEmpty()) {
+      result.error("PrintZPLOverTCPIP", "Data is required", null)
+      return
     }
+    val conn: Connection = createTcpConnect(ip, TcpConnection.DEFAULT_ZPL_TCP_PORT)
     try {
-      // Open the connection - physical connection is established here.
       conn.open()
-      // Send the data to printer as a byte array.
-      conn.write(data?.toByteArray())
-      rep["success"] = true
-      rep["message"] = "Successfully!"
-      result.success(rep.toString())
+      conn.write(data.toByteArray())
+      result.success("Print successful")
     } catch (e: ConnectionException) {
-      // Handle communications error here.
-      e.printStackTrace()
-      result.error("Error", "onPrintZPLOverTCPIP", e)
+      result.error("Error", "Connection failed", e.message)
     } finally {
-      // Close the connection to release resources.
       conn.close()
     }
   }
 
   private fun onPrintZplDataOverBluetooth(@NonNull call: MethodCall, @NonNull result: Result) {
-    var macAddress: String? = call.argument("mac")
-    var data: String? = call.argument("data")
-    Log.d(logTag, "onPrintZplDataOverBluetooth $macAddress $data")
-    if (data == null) {
-      result.error("onPrintZplDataOverBluetooth", "Data is required", "Data Content")
+    val macAddress: String? = call.argument("mac")
+    val data: String? = call.argument("data")
+
+    if (data == null || macAddress == null) {
+      result.error("INVALID_ARGUMENTS", "MAC Address and Data are required", null)
+      return
     }
 
     var conn: BluetoothLeConnection? = null
     try {
       conn = BluetoothLeConnection(macAddress, context)
-
-      // Open the connection - physical connection is established here.
-
-      // Open the connection - physical connection is established here.
       conn.open()
-
-      // Send the data to printer as a byte array.
-
-      // Send the data to printer as a byte array.
-      conn.write(data?.toByteArray())
-
+      conn.write(data.toByteArray())
       Thread.sleep(500)
+      result.success("Successfully sent data to printer")
     } catch (e: Exception) {
-      // Handle communications error here.
       e.printStackTrace()
-      result.error("Error", "onPrintZplDataOverBluetooth", e)
+      result.error("PRINT_ERROR", "Failed to print over Bluetooth", e)
     } finally {
-      if (null != conn) {
-        try {
-          conn.close()
-        } catch (e: ConnectionException) {
-          e.printStackTrace()
-        }
-      }
+      conn?.close()
     }
-
   }
 
   private fun onGetPrinterInfo(@NonNull call: MethodCall, @NonNull result: Result) {
-    var ipE: String? = call.argument("ip")
-    var ipPort: Int? = call.argument("port")
-    var ipAddress: String = ""
-    var port: Int = TcpConnection.DEFAULT_ZPL_TCP_PORT
-    if(ipE != null){
-      ipAddress = ipE
-    } else {
-      result.error("PrintZPLOverTCPIP", "IP Address is required", "Data Content")
+    val ipAddress: String? = call.argument("ip")
+    val port: Int = call.argument("port") ?: TcpConnection.DEFAULT_ZPL_TCP_PORT
+
+    if (ipAddress == null) {
+      result.error("INVALID_ARGUMENTS", "IP Address is required", null)
       return
     }
-    if(ipPort != null){
-      port = ipPort
-    }
-    val conn: Connection = createTcpConnect(ipAddress, port)
+
+    val conn: Connection = TcpConnection(ipAddress, port)
     try {
-      // Open the connection - physical connection is established here.
       conn.open()
-      // Send the data to printer as a byte array.
       val dataMap = DiscoveryUtil.getDiscoveryDataMap(conn)
-      Log.d(logTag, "onGetIPInfo $dataMap")
-      var resp = ZebreResult()
-      resp.success = true
-      resp.message= "Successfully!"
-      var printer: ZebraPrinterInfo = ZebraPrinterInfo()
-      printer.serialNumber = dataMap["SERIAL_NUMBER"]
-      printer.address = dataMap["ADDRESS"]
-      printer.availableInterfaces = dataMap["AVAILABLE_INTERFACES"]
-      printer.availableLanguages = dataMap["AVAILABLE_LANGUAGES"]
-      printer.darkness = dataMap["DARKNESS"]
-      printer.jsonPortNumber = dataMap["JSON_PORT_NUMBER"]
-      printer.productName = dataMap["PRODUCT_NAME"]
-      resp.content = printer
-      result.success(resp.toJSON())
+      val printerInfo = ZebraPrinterInfo(
+        serialNumber = dataMap["SERIAL_NUMBER"],
+        address = dataMap["ADDRESS"],
+        availableInterfaces = dataMap["AVAILABLE_INTERFACES"],
+        availableLanguages = dataMap["AVAILABLE_LANGUAGES"],
+        darkness = dataMap["DARKNESS"],
+        jsonPortNumber = dataMap["JSON_PORT_NUMBER"],
+        productName = dataMap["PRODUCT_NAME"]
+      )
+      result.success(Gson().toJson(printerInfo))
     } catch (e: ConnectionException) {
-      // Handle communications error here.
       e.printStackTrace()
-      result.error("Error", "onPrintZPLOverTCPIP", e)
+      result.error("CONNECTION_ERROR", "Failed to connect to printer", e)
     } finally {
-      // Close the connection to release resources.
       conn.close()
     }
   }
@@ -398,6 +350,4 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
 
   }
-
-
 }

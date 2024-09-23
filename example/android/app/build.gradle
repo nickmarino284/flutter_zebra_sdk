@@ -26,7 +26,23 @@ apply plugin: 'kotlin-android'
 apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
 android {
-    compileSdkVersion 29
+    namespace 'com.mrtungdev.flutter_zebra_sdk'
+    compileSdkVersion 34
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_19
+        targetCompatibility JavaVersion.VERSION_19
+
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(19)
+            }
+        }
+    }
+
+    kotlinOptions {
+        jvmTarget = '19'
+    }
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
@@ -38,9 +54,8 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId "com.tlt.flutter_zebra_sdk_example"
-        minSdkVersion 16
-        targetSdkVersion 29
+        applicationId "com.mrtungdev.flutter_zebra_sdk"
+        minSdkVersion 21
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }
