@@ -2,14 +2,14 @@ group 'com.tlt.flutter_zebra_sdk'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.kotlin_version = '1.5.20'
+    ext.kotlin_version = '1.8.0'
     repositories {
         google()
-        jcenter()
+        mavenCentral()
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.5.0'
+        classpath 'com.android.tools.build:gradle:8.5.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
@@ -17,7 +17,7 @@ buildscript {
 rootProject.allprojects {
     repositories {
         google()
-        jcenter()
+        mavenCentral()
     }
 }
 
@@ -25,13 +25,14 @@ apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
 android {
-    compileSdkVersion 29
+    namespace 'com.example.flutter_zebra_sdk'
+    compileSdkVersion 34
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
     }
     defaultConfig {
-        minSdkVersion 16
+        minSdkVersion 21
     }
     lintOptions {
         disable 'InvalidPackage'
@@ -43,6 +44,6 @@ dependencies {
     // implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2'
     // implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.0.1"
     implementation fileTree(include: '*.jar', dir: 'libs')
-    implementation 'androidx.annotation:annotation:1.1.0'
-    implementation 'com.google.code.gson:gson:2.8.6'
+    implementation 'androidx.annotation:annotation:1.8.2'
+    implementation 'com.google.code.gson:gson:2.10.1'
 }
