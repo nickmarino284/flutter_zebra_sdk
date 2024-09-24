@@ -106,7 +106,6 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         "onDiscoveryUSB" -> {
           onDiscoveryUSB(call, result)
         }
-
         "onGetPrinterInfo" -> {
           onGetPrinterInfo(call, result)
         }
@@ -142,25 +141,33 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
   private fun onPrintZPLOverTCPIP(@NonNull call: MethodCall, @NonNull result: Result) {
     val ip = call.argument<String>("ip")
     val data = call.argument<String>("data")
+
     if (ip.isNullOrEmpty()) {
       result.error("PrintZPLOverTCPIP", "IP Address is required", null)
       return
     }
+
     if (data.isNullOrEmpty()) {
       result.error("PrintZPLOverTCPIP", "Data is required", null)
       return
     }
+
     val conn: Connection = createTcpConnect(ip, TcpConnection.DEFAULT_ZPL_TCP_PORT)
+
     try {
       conn.open()
+      Log.d(logTag, "Sending data to printer at $ip: $data")
+
       conn.write(data.toByteArray())
       result.success("Print successful")
     } catch (e: ConnectionException) {
-      result.error("Error", "Connection failed", e.message)
+      Log.e(logTag, "Connection failed: ${e.message}")
+      result.error("ConnectionError", "Connection failed", e.message)
     } finally {
       conn.close()
     }
   }
+
 
   private fun onPrintZplDataOverBluetooth(@NonNull call: MethodCall, @NonNull result: Result) {
     val macAddress: String? = call.argument("mac")
@@ -198,66 +205,102 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     val conn: Connection = TcpConnection(ipAddress, port)
     try {
       conn.open()
-      val dataMap = DiscoveryUtil.getDiscoveryDataMap(conn)
-      val printerInfo = ZebraPrinterInfo(
-        serialNumber = dataMap["SERIAL_NUMBER"],
-        address = dataMap["ADDRESS"],
-        availableInterfaces = dataMap["AVAILABLE_INTERFACES"],
-        availableLanguages = dataMap["AVAILABLE_LANGUAGES"],
-        darkness = dataMap["DARKNESS"],
-        jsonPortNumber = dataMap["JSON_PORT_NUMBER"],
-        productName = dataMap["PRODUCT_NAME"]
-      )
-      result.success(Gson().toJson(printerInfo))
+      if (!conn.isConnected) {
+        Log.e(logTag, "Connection to printer at $ipAddress:$port failed.")
+        result.error("CONNECTION_ERROR", "Failed to connect to printer", null)
+        return
+      }
+      else {
+        Log.d(logTag, "Connected to printer at $ipAddress:$port")
+      }
+
+      try {
+        val dataMap = DiscoveryUtil.getDiscoveryDataMap(conn)
+        Log.d(logTag, "Received Discovery Data: $dataMap")
+
+        // Validate keys in the dataMap
+        val printerInfo = ZebraPrinterInfo(
+          serialNumber = dataMap["SERIAL_NUMBER"] ?: "N/A",
+          address = dataMap["ADDRESS"] ?: "N/A",
+          availableInterfaces = dataMap["AVAILABLE_INTERFACES"] ?: "N/A",
+          availableLanguages = dataMap["AVAILABLE_LANGUAGES"] ?: "N/A",
+          darkness = dataMap["DARKNESS"] ?: "N/A",
+          jsonPortNumber = dataMap["JSON_PORT_NUMBER"] ?: "N/A",
+          productName = dataMap["PRODUCT_NAME"] ?: "N/A"
+        )
+
+        result.success(Gson().toJson(printerInfo))
+      } catch (e: DiscoveryPacketDecodeException) {
+        Log.e(logTag, "Failed to parse discovery packet: ${e.message}")
+        result.error("DISCOVERY_ERROR", "Invalid discovery packet received", e.message)
+      }
     } catch (e: ConnectionException) {
-      e.printStackTrace()
-      result.error("CONNECTION_ERROR", "Failed to connect to printer", e)
+      Log.e(logTag, "Connection error: ${e.message}")
+      result.error("CONNECTION_ERROR", "Failed to connect to printer", e.message)
     } finally {
       conn.close()
     }
   }
+
+
 
   private fun isPrinterConnected(@NonNull call: MethodCall, @NonNull result: Result) {
     var ipE: String? = call.argument("ip")
     var ipPort: Int? = call.argument("port")
     var ipAddress: String = ""
     var port: Int = TcpConnection.DEFAULT_ZPL_TCP_PORT
-    if(ipE != null){
+
+    if (ipE != null) {
       ipAddress = ipE
     } else {
       result.error("isPrinterConnected", "IP Address is required", "Data Content")
       return
     }
-    if(ipPort != null){
+
+    if (ipPort != null) {
       port = ipPort
     }
+
     val conn: Connection = createTcpConnect(ipAddress, port)
     var resp = ZebreResult()
+
     try {
-      // Open the connection - physical connection is established here.
+      Log.d(logTag, "Connecting to printer at $ipAddress:$port")
       conn.open()
-      // Send the data to printer as a byte array.
-      val dataMap = DiscoveryUtil.getDiscoveryDataMap(conn)
-      Log.d(logTag, "onGetIPInfo $dataMap")
-      var isConnected: Boolean = conn.isConnected
-      resp.success = isConnected
-      resp.message =  "Unconnected"
-      if(isConnected){
-        resp.message =  "Connected"
+
+      if (!conn.isConnected) {
+        Log.e(logTag, "Connection to printer failed.")
+        resp.success = false
+        resp.message = "Unconnected"
+        result.success(resp.toJSON())
+        return
       }
+
+      try {
+        val dataMap = DiscoveryUtil.getDiscoveryDataMap(conn)
+        Log.d(logTag, "Discovery Data Map: $dataMap")
+      } catch (e: DiscoveryPacketDecodeException) {
+        Log.e(logTag, "Failed to parse discovery packet: ${e.message}")
+        resp.success = false
+        resp.message = "Invalid discovery packet"
+        result.success(resp.toJSON())
+        return
+      }
+
+      resp.success = true
+      resp.message = "Connected"
       result.success(resp.toJSON())
     } catch (e: ConnectionException) {
-      // Handle communications error here.
-      e.printStackTrace()
+      Log.e(logTag, "Connection error: ${e.message}")
       resp.success = false
-      resp.message =  "Unconnected"
+      resp.message = "Unconnected"
       result.success(resp.toJSON())
-//      result.error("Error", "onPrintZPLOverTCPIP", e)
     } finally {
-      // Close the connection to release resources.
       conn.close()
     }
   }
+
+
 
   private fun onDiscovery(@NonNull call: MethodCall, @NonNull result: Result) {
     var handleNet = object : DiscoveryHandler {

@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
-// import 'package:flutter/services.dart';
 import 'package:flutter_zebra_sdk/flutter_zebra_sdk.dart';
 
 void main() {
@@ -74,12 +74,45 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> onGetIPInfo() async {
-    var a = await ZebraSdk.onGetPrinterInfo('192.168.1.26');
-    print(a);
+    try {
+      // Optionally, show a loading indicator here
+
+      // Validate the IP address format (basic validation)
+      String ipAddress = '192.168.0.101';
+      if (!isValidIPAddress(ipAddress)) {
+        print("Invalid IP address format");
+        return;
+      }
+
+      var printerInfo = await ZebraSdk.onGetPrinterInfo(ipAddress);
+
+      if (printerInfo != null) {
+        print("Printer Info: $printerInfo");
+      } else {
+        print("No information returned for the printer.");
+      }
+    } catch (e) {
+      if (e is PlatformException && e.code == "DISCOVERY_ERROR") {
+        print("Discovery error: ${e.message}");
+      } else {
+        print("An unexpected error occurred: $e");
+      }
+    } finally {
+      // Hide the loading indicator here
+    }
   }
 
+// Basic IP address validation function
+  bool isValidIPAddress(String ipAddress) {
+    final RegExp ipRegExp = RegExp(
+      r'^(\d{1,3}\.){3}\d{1,3}$',
+    );
+    return ipRegExp.hasMatch(ipAddress);
+  }
+
+
   Future<void> onTestConnect() async {
-    var a = await ZebraSdk.isPrinterConnected('192.168.1.26');
+    var a = await ZebraSdk.isPrinterConnected('192.168.0.101');
     print(a);
     var b = json.decode(a);
     print(b);
@@ -105,7 +138,7 @@ class _MyAppState extends State<MyApp> {
     ^PQ1,0,1,Y^XZ
         ''';
 
-    final rep = ZebraSdk.printZPLOverTCPIP('192.168.1.26', data: data);
+    final rep = ZebraSdk.printZPLOverTCPIP('192.168.0.101', data: data);
     print(rep);
   }
 

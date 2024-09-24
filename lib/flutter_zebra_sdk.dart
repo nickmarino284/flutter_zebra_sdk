@@ -6,8 +6,7 @@ class ZebraSdk {
   static const MethodChannel _channel =
       const MethodChannel('flutter_zebra_sdk');
 
-  static Future<String?> printZPLOverTCPIP(String ipAddress,
-      {int? port, String? data}) async {
+  static Future<dynamic> printZPLOverTCPIP(String ipAddress, {int? port, String? data}) async {
     final Map<String, dynamic> params = {"ip": ipAddress};
     if (port != null) {
       params['port'] = port;
@@ -18,8 +17,7 @@ class ZebraSdk {
     return await _channel.invokeMethod('printZPLOverTCPIP', params);
   }
 
-  static Future<String?> printZPLOverBluetooth(String macAddress,
-      {String? data}) async {
+  static Future<dynamic> printZPLOverBluetooth(String macAddress, {String? data}) async {
     final Map<String, dynamic> params = {"mac": macAddress};
     if (data != null) {
       params['data'] = data;
