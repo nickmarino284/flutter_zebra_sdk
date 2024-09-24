@@ -194,31 +194,48 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
   }
 
   private fun onGetPrinterInfo(@NonNull call: MethodCall, @NonNull result: Result) {
-    val ipAddress: String? = call.argument("ip")
+    val ipAddress: String? = call.argument<String>("ip")
     val port: Int = call.argument("port") ?: TcpConnection.DEFAULT_ZPL_TCP_PORT
+    val data = call.argument<String>("data")
 
-    if (ipAddress == null) {
+    Log.e(logTag, "Connecting to printer at $ipAddress:$port.")
+
+    if (ipAddress.isNullOrEmpty()) {
       result.error("INVALID_ARGUMENTS", "IP Address is required", null)
       return
     }
 
-    val conn: Connection = TcpConnection(ipAddress, port)
+    val conn: Connection = createTcpConnect(ipAddress, port)
     try {
       conn.open()
       if (!conn.isConnected) {
         Log.e(logTag, "Connection to printer at $ipAddress:$port failed.")
         result.error("CONNECTION_ERROR", "Failed to connect to printer", null)
         return
-      }
-      else {
+      } else {
         Log.d(logTag, "Connected to printer at $ipAddress:$port")
       }
 
       try {
         val dataMap = DiscoveryUtil.getDiscoveryDataMap(conn)
-        Log.d(logTag, "Received Discovery Data: $dataMap")
 
-        // Validate keys in the dataMap
+        if (dataMap.isEmpty()) {
+          Log.e(logTag, "Received empty discovery data.")
+          result.error("DISCOVERY_ERROR", "No data received from printer", "Empty data map")
+          return
+        }
+        else {
+            Log.d(logTag, "Received Discovery SERIAL_NUMBER: ${dataMap["SERIAL_NUMBER"]}")
+            Log.d(logTag, "Received Discovery ADDRESS: ${dataMap["ADDRESS"]}")
+            Log.d(logTag, "Received Discovery AVAILABLE_INTERFACES: ${dataMap["AVAILABLE_INTERFACES"]}")
+            Log.d(logTag, "Received Discovery AVAILABLE_LANGUAGES: ${dataMap["AVAILABLE_LANGUAGES"]}")
+            Log.d(logTag, "Received Discovery DARKNESS: ${dataMap["DARKNESS"]}")
+            Log.d(logTag, "Received Discovery JSON_PORT_NUMBER: ${dataMap["JSON_PORT_NUMBER"]}")
+            Log.d(logTag, "Received Discovery PRODUCT_NAME: ${dataMap["PRODUCT_NAME"]}")
+        }
+
+//        Log.d(logTag, "Received Discovery Data: $dataMap")
+
         val printerInfo = ZebraPrinterInfo(
           serialNumber = dataMap["SERIAL_NUMBER"] ?: "N/A",
           address = dataMap["ADDRESS"] ?: "N/A",
@@ -242,10 +259,8 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
   }
 
-
-
   private fun isPrinterConnected(@NonNull call: MethodCall, @NonNull result: Result) {
-    var ipE: String? = call.argument("ip")
+    var ipE: String? = call.argument<String>("ip")
     var ipPort: Int? = call.argument("port")
     var ipAddress: String = ""
     var port: Int = TcpConnection.DEFAULT_ZPL_TCP_PORT
@@ -300,53 +315,65 @@ class FlutterZebraSdkPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
   }
 
-
-
   private fun onDiscovery(@NonNull call: MethodCall, @NonNull result: Result) {
-    var handleNet = object : DiscoveryHandler {
-      override fun foundPrinter(p0: DiscoveredPrinter) {
-        Log.d(logTag, "foundPrinter $p0")
-        var dataMap = p0.discoveryDataMap
-        var address = dataMap["ADDRESS"]
-        var isExist = printers.any { s -> s.address == address }
-        if(!isExist){
-          var printer: ZebraPrinterInfo = ZebraPrinterInfo()
-          printer.serialNumber = dataMap["SERIAL_NUMBER"]
-          printer.address = address
-          printer.availableInterfaces = dataMap["AVAILABLE_INTERFACES"]
-          printer.availableLanguages = dataMap["AVAILABLE_LANGUAGES"]
-          printer.darkness = dataMap["DARKNESS"]
-          printer.jsonPortNumber = dataMap["JSON_PORT_NUMBER"]
-          printer.productName = dataMap["PRODUCT_NAME"]
-          printers.add(printer)
+    val handleNet = object : DiscoveryHandler {
+      override fun foundPrinter(printer: DiscoveredPrinter) {
+        Log.d(logTag, "Found printer: $printer")
+        val dataMap = printer.discoveryDataMap
+
+        // Log the entire dataMap for debugging
+        Log.d(logTag, "Discovery Data Map: $dataMap")
+
+        val address = dataMap["ADDRESS"] ?: "Unknown Address"
+        val isExist = printers.any { it.address == address }
+
+        if (!isExist) {
+          val zebraPrinter = ZebraPrinterInfo().apply {
+            serialNumber = dataMap["SERIAL_NUMBER"] ?: "N/A"
+            this.address = address
+            availableInterfaces = dataMap["AVAILABLE_INTERFACES"] ?: "N/A"
+            availableLanguages = dataMap["AVAILABLE_LANGUAGES"] ?: "N/A"
+            darkness = dataMap["DARKNESS"] ?: "N/A"
+            jsonPortNumber = dataMap["JSON_PORT_NUMBER"] ?: "N/A"
+            productName = dataMap["PRODUCT_NAME"] ?: "N/A"
+          }
+          printers.add(zebraPrinter)
+          Log.d(logTag, "Added printer: ${zebraPrinter.serialNumber} at $address")
+        } else {
+          Log.d(logTag, "Printer already exists: $address")
         }
       }
 
       override fun discoveryFinished() {
-        Log.d(logTag, "discoveryFinished $printers")
-        var resp = ZebreResult()
-        resp.success = true
-        resp.message= "Successfully!"
-        var printersJSON = Gson().toJson(printers)
-        resp.content = printersJSON
+        Log.d(logTag, "Discovery finished. Printers found: $printers")
+        if (printers.isEmpty()) {
+          Log.w(logTag, "No printers found during discovery.")
+        }
+        val resp = ZebreResult().apply {
+          success = true
+          message = "Discovery successful!"
+          content = Gson().toJson(printers)
+        }
         result.success(resp.toJSON())
       }
 
-      override fun discoveryError(p0: String?) {
-        Log.d(logTag, "discoveryError $p0")
-        result.error("discoveryError", "discoveryError", p0)
+      override fun discoveryError(errorMessage: String?) {
+        Log.e(logTag, "Discovery error: $errorMessage")
+        result.error("DISCOVERY_ERROR", "Discovery failed", errorMessage ?: "Unknown error")
       }
     }
+
     try {
       printers.clear()
       NetworkDiscoverer.findPrinters(handleNet)
+      Log.d(logTag, "Initiated printer discovery.")
     } catch (e: Exception) {
-      e.printStackTrace()
-      result.error("Error", "onDiscovery", e)
+      Log.e(logTag, "Error during discovery: ${e.message}")
+      result.error("DISCOVERY_INIT_ERROR", "Failed to initiate discovery", e.message)
     }
-     var net =  DiscoveredPrinterNetwork("a", 1)
-
   }
+
+
 
 
   private fun onDiscoveryUSB(@NonNull call: MethodCall, @NonNull result: Result) {

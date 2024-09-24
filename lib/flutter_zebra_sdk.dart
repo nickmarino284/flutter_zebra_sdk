@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
+
 
 import 'package:flutter/services.dart';
 
@@ -35,19 +38,37 @@ class ZebraSdk {
     return await _channel.invokeMethod('onDiscoveryUSB', params);
   }
 
-  static Future<dynamic> onGetPrinterInfo(String ip, {int? port}) async {
+  static Future<Map<String, dynamic>?> onGetPrinterInfo(String ip, {int? port}) async {
     final Map<String, dynamic> params = {"ip": ip};
+
     if (port != null) {
       params['port'] = port;
     }
-    return await _channel.invokeMethod('onGetPrinterInfo', params);
+
+    params['data'] = "";
+
+    try {
+      final String response = await _channel.invokeMethod('onGetPrinterInfo', params);
+      return json.decode(response);
+    } catch (e) {
+      print("Error getting printer info: $e");
+      return null; // Handle the error gracefully
+    }
   }
 
-  static Future<dynamic> isPrinterConnected(String ip, {int? port}) async {
+  static Future<Map<String, dynamic>?>  isPrinterConnected(String ip, {int? port}) async {
     final Map<String, dynamic> params = {"ip": ip};
+
     if (port != null) {
       params['port'] = port;
     }
-    return await _channel.invokeMethod('isPrinterConnected', params);
+
+    try {
+      final String response = await _channel.invokeMethod('isPrinterConnected', params);
+      return json.decode(response);
+    } catch (e) {
+      print("Error checking printer connection: $e");
+      return null; // Handle the error gracefully
+    }
   }
 }

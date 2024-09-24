@@ -79,12 +79,13 @@ class _MyAppState extends State<MyApp> {
 
       // Validate the IP address format (basic validation)
       String ipAddress = '192.168.0.101';
+      int port = 9100;
       if (!isValidIPAddress(ipAddress)) {
         print("Invalid IP address format");
         return;
       }
 
-      var printerInfo = await ZebraSdk.onGetPrinterInfo(ipAddress);
+      var printerInfo = await ZebraSdk.onGetPrinterInfo(ipAddress, port:port);
 
       if (printerInfo != null) {
         print("Printer Info: $printerInfo");
@@ -105,17 +106,31 @@ class _MyAppState extends State<MyApp> {
 // Basic IP address validation function
   bool isValidIPAddress(String ipAddress) {
     final RegExp ipRegExp = RegExp(
-      r'^(\d{1,3}\.){3}\d{1,3}$',
+      r'^(?!0)(?!.*\.$)(?!.*\.\.)([0-9]{1,3}\.){3}[0-9]{1,3}$',
     );
     return ipRegExp.hasMatch(ipAddress);
   }
 
 
   Future<void> onTestConnect() async {
-    var a = await ZebraSdk.isPrinterConnected('192.168.0.101');
-    print(a);
-    var b = json.decode(a);
-    print(b);
+    try {
+      var a = await ZebraSdk.isPrinterConnected('192.168.0.101', port:9100);
+      if (a != null) {
+        print("Connection result: $a"); // This is already a Map
+        // You can access the data directly without decoding
+        if (a['success'] == true) {
+          print("Printer is connected: ${a['connected']}");
+          print("Success ${a['message']}");
+        }
+        else {
+          print("Failed ${a['message']}");
+        }
+      } else {
+        print("No response from printer connection check.");
+      }
+    } catch (e) {
+      print("Error during connection check: $e");
+    }
   }
 
   Future<void> onTestTCP() async {

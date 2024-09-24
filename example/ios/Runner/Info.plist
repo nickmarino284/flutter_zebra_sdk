@@ -52,5 +52,9 @@
 	<false/>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>Our app uses bluetooth to find, connect and transfer data between different devices</string>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 </dict>
 </plist>
