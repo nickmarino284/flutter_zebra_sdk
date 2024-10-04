@@ -1,8 +1,5 @@
-group 'com.tlt.flutter_zebra_sdk'
-version '1.0-SNAPSHOT'
-
 buildscript {
-    ext.kotlin_version = '1.8.0'
+    ext.kotlin_version = '1.9.0'
     repositories {
         google()
         mavenCentral()
@@ -14,15 +11,13 @@ buildscript {
     }
 }
 
-rootProject.allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
+plugins {
+    id 'com.android.library'
+    id 'kotlin-android'
 }
 
-apply plugin: 'com.android.library'
-apply plugin: 'kotlin-android'
+group 'com.tlt.flutter_zebra_sdk'
+version '1.0-SNAPSHOT'
 
 android {
     namespace 'com.mrtungdev.flutter_zebra_sdk'
@@ -52,6 +47,13 @@ android {
     }
     lintOptions {
         disable 'InvalidPackage'
+    }
+}
+
+rootProject.allprojects {
+    repositories {
+        google()
+        mavenCentral()
     }
 }
 
